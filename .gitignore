@@ -6,3 +6,8 @@
 .vscode
 *.bin
 *.elf
+# Backup files
+src/main.cpp.*
+src/UsefulCmdLines.bk
+ultrasonic_test.ino
+
