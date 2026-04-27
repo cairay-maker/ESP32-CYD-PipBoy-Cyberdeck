@@ -1,0 +1,12 @@
+pio run --target uploadfs
+
+pio run --target erase && pio run --target uploadfs && pio run --target upload && pio device monitor
+
+
+Struggling with wrong colors on your ESP32 Cheap Yellow Display (CYD) with ST7789 and TFT_eSPI? Red showing as Blue? Black showing as White? This video shows exactly why it happens and how to fix it in 3 simple settings.
+The Fix:
+
+tft.invertDisplay(false) — fixes inverted colors
+tft.pushColors(bitmap, w * h, false) — prevents double byte swap
+TJpgDec.setSwapBytes(true) — single swap in the right place
+-D TFT_RGB_ORDER=TFT_BGR in platformio.ini — fixes Red/Blue channel swap

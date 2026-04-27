@@ -1,0 +1,112 @@
+#include <Arduino.h>
+#include <TFT_eSPI.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+TFT_eSPI_Button btnStart, btnStop, btnReset;
+
+unsigned long startTime = 0;
+unsigned long elapsedTime = 0;
+bool timerRunning = false;
+
+// Calibration data storage
+uint16_t calData[5];
+bool calDataOK = false;
+
+void calibrateTouch() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.drawCentreString("Touch calibration", 160, 100, 2);
+  tft.drawCentreString("Follow the arrows", 160, 130, 2);
+  delay(1000);
+
+  tft.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, 15);
+
+  tft.fillScreen(TFT_BLACK);
+  tft.drawCentreString("Calibration done!", 160, 110, 2);
+  delay(1000);
+
+  calDataOK = true;
+}
+
+void drawUI() {
+  tft.fillScreen(TFT_BLACK);
+
+  // Timer display area
+  tft.drawCentreString("00:00", 160, 80, 4);
+
+  // Buttons
+  btnStart.drawButton();
+  btnStop.drawButton();
+  btnReset.drawButton();
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  tft.init();
+  tft.setRotation(1);
+  tft.invertDisplay(false);
+  tft.fillScreen(TFT_BLACK);
+
+  pinMode(27, OUTPUT);
+  digitalWrite(27, HIGH);
+
+  btnStart.initButton(&tft,  60, 180, 80, 40, 0x17E1, TFT_BLACK, 0x17E1, (char*)"START", 2);
+  btnStop.initButton(&tft,  160, 180, 80, 40, 0x17E1, TFT_BLACK, 0x17E1, (char*)"STOP",  2);
+  btnReset.initButton(&tft, 260, 180, 80, 40, 0x17E1, TFT_BLACK, 0x17E1, (char*)"RESET", 2);
+
+  // Run calibration on first boot
+  calibrateTouch();
+
+  // Apply calibration data
+  tft.setTouch(calData);
+
+  drawUI();
+}
+
+void loop() {
+  uint16_t t_x = 0, t_y = 0;
+  bool pressed = tft.getTouch(&t_x, &t_y);
+
+  if (pressed) {
+    Serial.printf("Touch X: %d Y: %d\n", t_x, t_y);
+  }
+
+  btnStart.press(pressed && btnStart.contains(t_x, t_y));
+  btnStop.press(pressed && btnStop.contains(t_x, t_y));
+  btnReset.press(pressed && btnReset.contains(t_x, t_y));
+
+  if (btnStart.justPressed()) {
+    btnStart.drawButton(true);
+    timerRunning = true;
+    startTime = millis() - elapsedTime;
+  }
+  if (btnStart.justReleased()) btnStart.drawButton();
+
+  if (btnStop.justPressed()) {
+    btnStop.drawButton(true);
+    timerRunning = false;
+  }
+  if (btnStop.justReleased()) btnStop.drawButton();
+
+  if (btnReset.justPressed()) {
+    btnReset.drawButton(true);
+    timerRunning = false;
+    elapsedTime = 0;
+  }
+  if (btnReset.justReleased()) btnReset.drawButton();
+
+  if (timerRunning) {
+    elapsedTime = millis() - startTime;
+  }
+
+  // Centered timer display
+  char timeStr[10];
+  sprintf(timeStr, "%02lu:%02lu", (elapsedTime / 60000) % 60, (elapsedTime / 1000) % 60);
+  tft.setTextColor(0x17E1, TFT_BLACK);
+  tft.drawCentreString(timeStr, 160, 80, 4);
+
+  delay(10);
+}

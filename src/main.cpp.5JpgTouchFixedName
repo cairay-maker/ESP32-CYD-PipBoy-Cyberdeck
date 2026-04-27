@@ -1,0 +1,111 @@
+#include <Arduino.h>
+#include <TFT_eSPI.h>
+#include <SPIFFS.h>
+#include <TJpg_Decoder.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+// Calibration
+uint16_t calData[5];
+
+// Image list
+const char* images[] = {
+  "/colorwordstest.jpg",
+  "/vaultboy1.jpg"       // ← change to your actual filename
+};
+const int IMAGE_COUNT = sizeof(images) / sizeof(images[0]);
+int currentImage = 0;
+
+// TJpg callback
+bool tft_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t* bitmap) {
+  if (y >= tft.height() || x >= tft.width()) return false;
+  tft.startWrite();
+  tft.setAddrWindow(x, y, w, h);
+  tft.pushColors(bitmap, w * h, false);
+  tft.endWrite();
+  return true;
+}
+
+void drawCurrentImage() {
+  tft.fillScreen(TFT_BLACK);
+  Serial.printf("Drawing: %s\n", images[currentImage]);
+  TJpgDec.drawFsJpg(0, 0, images[currentImage]);
+}
+
+void calibrateTouch() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("Touch calibration", 160, 100, 2);
+  tft.drawCentreString("Follow the arrows", 160, 130, 2);
+  delay(1000);
+  tft.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, 15);
+  tft.setTouch(calData);
+  tft.fillScreen(TFT_BLACK);
+  tft.drawCentreString("Calibration done!", 160, 110, 2);
+  delay(1000);
+}
+
+void listSPIFFSFiles() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(1);
+  tft.drawCentreString("Files in SPIFFS:", 160, 10, 2);
+
+  int y = 40;
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  
+  while (file) {
+    String fileName = file.name();
+    int fileSize = file.size();
+    Serial.printf("File: %s, Size: %d\n", fileName.c_str(), fileSize);
+    tft.drawString(fileName + "  " + String(fileSize) + "b", 10, y, 2);
+    y += 20;
+    file = root.openNextFile();
+  }
+
+  delay(5000);  // show for 5 seconds
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  tft.init();
+  tft.setRotation(1);
+  tft.invertDisplay(false);
+  tft.fillScreen(TFT_BLACK);
+
+  pinMode(27, OUTPUT);
+  digitalWrite(27, HIGH);
+
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS failed");
+    while (1);
+  }
+
+  TJpgDec.setCallback(tft_output);
+  TJpgDec.setSwapBytes(true);
+
+  calibrateTouch();
+  listSPIFFSFiles();   // ← add this
+  drawCurrentImage();
+}
+
+
+
+void loop() {
+  uint16_t t_x = 0, t_y = 0;
+  bool pressed = tft.getTouch(&t_x, &t_y);
+
+  if (pressed) {
+    Serial.printf("Touch X: %d Y: %d\n", t_x, t_y);
+
+    // wait for release
+    while (tft.getTouch(&t_x, &t_y)) delay(10);
+
+    currentImage = (currentImage + 1) % IMAGE_COUNT;
+    drawCurrentImage();
+  }
+
+  delay(10);
+}
